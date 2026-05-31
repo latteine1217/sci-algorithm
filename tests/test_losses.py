@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from pinn_cavity.losses import loss_terms, total_loss, update_weights, init_weights
+from pinn_cavity.losses import loss_terms, total_loss, update_weights, init_weights, ema_blend
 from pinn_cavity.networks import build_model
 from pinn_cavity.config import NetworkConfig
 
@@ -40,3 +40,12 @@ def test_fixed_weights_are_unit():
     params, static, xy = _setup()
     w = update_weights(params, static, xy, re=1000.0, method="fixed")
     assert all(float(v) == 1.0 for v in (w["x"], w["y"], w["c"]))
+
+
+def test_ema_blend_slows_change():
+    import jax.numpy as jnp
+    old = {"x": jnp.asarray(1.0), "y": jnp.asarray(1.0), "c": jnp.asarray(1.0)}
+    new = {"x": jnp.asarray(11.0), "y": jnp.asarray(1.0), "c": jnp.asarray(1.0)}
+    w = ema_blend(old, new, alpha=0.9)
+    assert abs(float(w["x"]) - 2.0) < 1e-6  # 0.9*1 + 0.1*11 = 2.0
+    assert float(w["y"]) == 1.0

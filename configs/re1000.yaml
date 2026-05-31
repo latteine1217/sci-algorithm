@@ -4,7 +4,8 @@ re: 1000.0
 lid_r: 10.0
 seed: 0
 x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 下不可用，故 fp32
-weighting: fixed
+weighting: gradnorm  # 自適應權重壓低連續殘差
+weight_ema: 0.9      # EMA 平滑，避免權重跳變
 
 network:
   width: 256
@@ -34,7 +35,7 @@ train:
   steps: 40000           # curriculum 未指定步數時的預設
   n_collocation: 16384
   resample_every: 200
-  weight_update_every: 200
+  weight_update_every: 1000
   log_every: 500
   checkpoint_every: 5000
 

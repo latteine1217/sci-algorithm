@@ -33,6 +33,8 @@ def config_snapshot(cfg):
         "re": cfg.re,
         "x64": bool(cfg.x64),
         "weighting": cfg.weighting,
+        "weight_ema": cfg.weight_ema,
+        "rwf": getattr(cfg.network, "rwf", False),
         "optimizer": cfg.optimizer.name,
         "sampler": cfg.sampler.name,
         "lid_r": cfg.lid_r,

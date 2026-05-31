@@ -20,6 +20,11 @@ def init_weights():
     return {"x": jnp.asarray(1.0), "y": jnp.asarray(1.0), "c": jnp.asarray(1.0)}
 
 
+def ema_blend(old, new, alpha):
+    """權重 EMA 平滑：w ← alpha·old + (1-alpha)·new。alpha 越大變化越慢。"""
+    return {k: alpha * old[k] + (1.0 - alpha) * new[k] for k in old}
+
+
 def total_loss(params, static, xy, weights, re):
     lx, ly, lc = loss_terms(params, static, xy, re=re)
     return weights["x"] * lx + weights["y"] * ly + weights["c"] * lc

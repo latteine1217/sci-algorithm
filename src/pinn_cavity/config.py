@@ -55,6 +55,7 @@ class Config:
     seed: int = 0
     x64: bool = True
     weighting: str = "fixed"     # registry: losses.WEIGHTERS（fixed/gradnorm/ntk）
+    weight_ema: float = 0.9      # 權重 EMA 平滑係數：w←ema·w + (1-ema)·new
     curriculum: list = field(default_factory=list)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)

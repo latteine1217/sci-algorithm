@@ -10,7 +10,7 @@ import jax
 import optax
 
 from .networks import build_model, NetStatic
-from .losses import total_loss, loss_terms, update_weights, init_weights
+from .losses import total_loss, loss_terms, update_weights, init_weights, ema_blend
 from .optimizers import build_optimizer
 from .geometry import make_sampler
 from .config import device_info, curriculum_stages, apply_runtime
@@ -65,7 +65,8 @@ def _run_stage(params, static, cfg, re, steps, key, sampler, opt, opt_state,
             key, sk = jax.random.split(key)
             xy = sampler(sk, cfg.train.n_collocation)
         if cfg.weighting != "fixed" and it % cfg.train.weight_update_every == 0 and it > 0:
-            weights = update_weights(params, static, xy, re, method=cfg.weighting)
+            new_w = update_weights(params, static, xy, re, method=cfg.weighting)
+            weights = ema_blend(weights, new_w, cfg.weight_ema)  # 平滑，避免權重跳變
 
         params, opt_state, L = step(params, opt_state, xy, weights)
 
