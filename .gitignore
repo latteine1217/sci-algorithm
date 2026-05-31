@@ -5,3 +5,6 @@ results/
 .pytest_cache/
 *.npz
 logs/
+
+# DNS 參考資料需追蹤
+!src/pinn_cavity/data/dns_re1000_r10.npz

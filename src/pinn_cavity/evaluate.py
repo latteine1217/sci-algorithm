@@ -11,8 +11,8 @@ import json
 import numpy as np
 import jax.numpy as jnp
 from .networks import predict, NetStatic
-from .benchmark_ghia import GHIA_RE1000
 from . import diagnostics as dg
+from . import reference as ref
 from .metrics import update_summary
 
 
@@ -41,16 +41,30 @@ def _read_history(path):
 
 # ---------- 繪圖 ----------
 
-def _plot_centerlines(prof, dense, path):
-    """PINN 密採樣畫平滑曲線；Ghia 17 點畫散點（L2 仍以 17 點計）。"""
+def _plot_centerlines(prof, path):
+    """PINN vs DNS 密中線（兩條曲線）。"""
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-    ax[0].plot(dense["u"], dense["y"], "b-", lw=1.5, label="PINN")
-    ax[0].plot(prof["u_ghia"], prof["y"], "ro", ms=5, label="Ghia 1982")
+    ax[0].plot(prof["u_pred"], prof["y"], "b-", lw=1.5, label="PINN")
+    ax[0].plot(prof["u_ref"], prof["y"], "k--", lw=1.5, label="DNS")
     ax[0].set_xlabel("u"); ax[0].set_ylabel("y"); ax[0].set_title("u at x=0.5"); ax[0].legend()
-    ax[1].plot(dense["x"], dense["v"], "b-", lw=1.5, label="PINN")
-    ax[1].plot(prof["x"], prof["v_ghia"], "ro", ms=5, label="Ghia 1982")
+    ax[1].plot(prof["x"], prof["v_pred"], "b-", lw=1.5, label="PINN")
+    ax[1].plot(prof["x"], prof["v_ref"], "k--", lw=1.5, label="DNS")
     ax[1].set_xlabel("x"); ax[1].set_ylabel("v"); ax[1].set_title("v at y=0.5"); ax[1].legend()
+    fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
+
+
+def _plot_error_map(F, path):
+    """|PINN − DNS| 速度大小誤差場（全場驗證，DNS 才能做）。"""
+    import matplotlib.pyplot as plt
+    dU, dV, _ = ref.dns_field(F["XX"], F["YY"])
+    spd_p = np.sqrt(F["U"] ** 2 + F["V"] ** 2)
+    spd_d = np.sqrt(np.nan_to_num(dU) ** 2 + np.nan_to_num(dV) ** 2)
+    err = np.abs(spd_p - spd_d)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    cf = ax.contourf(F["XX"], F["YY"], err, levels=30, cmap="magma")
+    ax.set_title("|PINN - DNS| speed error"); ax.set_xlabel("x"); ax.set_ylabel("y")
+    ax.set_aspect("equal"); fig.colorbar(cf, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
 
@@ -93,8 +107,8 @@ def _plot_streamfunction(F, vor, path):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(5, 5))
     cs = ax.contour(F["XX"], F["YY"], F["psi"], levels=25, colors="k", linewidths=0.5)
-    p = vor["primary"]; ax.plot([p["x"]], [p["y"]], "r+", ms=12)
-    gx, gy = GHIA_RE1000["primary_vortex"]; ax.plot([gx], [gy], "bo", ms=6, label="Ghia primary")
+    p = vor["primary"]; ax.plot([p["x"]], [p["y"]], "r+", ms=12, label="PINN vortex")
+    dx, dy = ref.dns_primary_vortex(); ax.plot([dx], [dy], "bo", ms=6, label="DNS vortex")
     ax.set_title("Stream function (Re=1000)"); ax.set_xlabel("x"); ax.set_ylabel("y")
     ax.set_aspect("equal"); ax.legend()
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
@@ -157,8 +171,9 @@ def _assess(metrics, hist):
         feats.append("bottom corner vortices present")
     phys_status = "PASS" if (metrics["primary_vortex_pos_err"] < 0.1 and sec) else "SUSPECT"
 
-    # 對照 Ghia：apples-to-apples（同 Re=1000、同定義），cosh lid 為 modeling 差異
-    l2 = max(metrics["rel_l2_u"], metrics["rel_l2_v"])
+    # 對照 DNS：apples-to-apples（同 Re=1000、同 cosh lid 剖面），用全場 rel-L2
+    l2 = max(metrics["rel_l2_u"], metrics["rel_l2_v"],
+             metrics["field_rel_l2_u"], metrics["field_rel_l2_v"])
     val_status = "PASS" if l2 < 0.10 else ("SUSPECT" if l2 < 0.25 else "FAIL")
 
     statuses = [conv_status, disc_status, phys_status, val_status]
@@ -181,9 +196,10 @@ def _assess(metrics, hist):
             "physical_validity": {"status": phys_status, "features": feats,
                                   "primary_vortex_pos_err": metrics["primary_vortex_pos_err"],
                                   "secondary_present": sec},
-            "validation": {"status": val_status, "reference": "Ghia et al. 1982 (Re=1000)",
-                           "rel_l2_u": metrics["rel_l2_u"], "rel_l2_v": metrics["rel_l2_v"],
-                           "error_attribution": "centerline gap partly modeling (cosh-regularized lid vs sharp lid)"},
+            "validation": {"status": val_status, "reference": "Lethe DNS (Re=1000, cosh r=10 lid)",
+                           "centerline_rel_l2_u": metrics["rel_l2_u"], "centerline_rel_l2_v": metrics["rel_l2_v"],
+                           "field_rel_l2_u": metrics["field_rel_l2_u"], "field_rel_l2_v": metrics["field_rel_l2_v"],
+                           "error_attribution": "apples-to-apples (same cosh lid); gap = PINN representation/training error"},
         },
         "unverified": unverified,
     }
@@ -199,11 +215,11 @@ def evaluate(params, static, re=1000.0, out_dir="results", history_path=None, gr
     vor = dg.detect_vortices(F)
     metrics = dg.aggregate_metrics(params, static, F)
     prof = dg.centerline(params, static)
-    dense = dg.centerline_dense(params, static)
     hist = _read_history(history_path or os.path.join(out_dir, "history.csv"))
 
     # 圖
-    _plot_centerlines(prof, dense, f"{out_dir}/centerlines.png")
+    _plot_centerlines(prof, f"{out_dir}/centerlines.png")
+    _plot_error_map(F, f"{out_dir}/error_map.png")
     _plot_field(F, vor, f"{out_dir}/field.png")
     _plot_scalar(F["XX"], F["YY"], F["P"], "Pressure (mean-anchored)", "RdBu_r", f"{out_dir}/pressure.png")
     _plot_scalar(F["XX"], F["YY"], F["vort"], "Vorticity", "RdBu_r", f"{out_dir}/vorticity.png")
@@ -221,9 +237,10 @@ def evaluate(params, static, re=1000.0, out_dir="results", history_path=None, gr
     with open(os.path.join(out_dir, "evaluation.json"), "w") as f:
         json.dump({"metrics": metrics, "assessment": assessment}, f, indent=2, ensure_ascii=False)
 
-    print(f"=== Validation === verdict={assessment['verdict']} "
-          f"| rel-L2 u={metrics['rel_l2_u']:.4f} v={metrics['rel_l2_v']:.4f} "
-          f"| div_max={metrics['divergence_max']:.2e} div_mean={metrics['divergence_mean']:.2e}")
+    print(f"=== Validation (vs DNS) === verdict={assessment['verdict']} "
+          f"| centerline-L2 u={metrics['rel_l2_u']:.4f} v={metrics['rel_l2_v']:.4f} "
+          f"| field-L2 u={metrics['field_rel_l2_u']:.4f} v={metrics['field_rel_l2_v']:.4f} "
+          f"| div_mean={metrics['divergence_mean']:.2e}")
     print(f"    primary vortex ({metrics['primary_vortex'][0]:.3f},{metrics['primary_vortex'][1]:.3f}) "
           f"err={metrics['primary_vortex_pos_err']:.3f} | "
           f"secondary BL={metrics['secondary_BL_present']} BR={metrics['secondary_BR_present']} "

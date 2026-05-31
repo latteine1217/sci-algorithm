@@ -9,6 +9,7 @@ dependencies = [
     "soap-jax @ git+https://github.com/haydn-jones/SOAP_JAX@ddddc25724dfd629b0cd01584eca1e32ea8ac4de",
     "chex>=0.1.86",  # soap-jax 未宣告但 import 之相依
     "numpy>=1.26",
+    "scipy>=1.11",        # DNS 參考插值（reference.py）
     "matplotlib>=3.8",
     "pyyaml>=6.0",
 ]
@@ -27,3 +28,4 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinn_cavity"]
+artifacts = ["src/pinn_cavity/data/*.npz"]  # 強制打包 DNS 參考（被 .gitignore *.npz 排除）

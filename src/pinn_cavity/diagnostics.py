@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 from .networks import predict
 from .physics import ns_residuals
-from .benchmark_ghia import GHIA_RE1000
+from . import reference as ref
 
 
 def _grid(n):
@@ -84,58 +84,63 @@ def detect_vortices(fields):
     }
 
 
-def centerline(params, static):
-    """Ghia 取樣點上的中線 u(y@x=0.5)、v(x@y=0.5) 預測與參考。"""
-    g = GHIA_RE1000
-    ys = np.array(g["y"]); xs = np.array(g["x"])
-    pu = jnp.stack([jnp.full_like(jnp.array(ys), 0.5), jnp.array(ys)], axis=-1)
-    pv = jnp.stack([jnp.array(xs), jnp.full_like(jnp.array(xs), 0.5)], axis=-1)
-    u_pred = np.array(predict(params, static, pu)[:, 0])
-    v_pred = np.array(predict(params, static, pv)[:, 1])
-    return {"y": ys, "u_pred": u_pred, "u_ghia": np.array(g["u"]),
-            "x": xs, "v_pred": v_pred, "v_ghia": np.array(g["v"])}
-
-
-def centerline_dense(params, static, n=201):
-    """密採樣中線 u(y@x=0.5)、v(x@y=0.5)，供平滑繪圖（非 L2，L2 用 Ghia 17 點）。"""
-    t = np.linspace(0.0, 1.0, n)
+def centerline(params, static, n=201):
+    """密中線 u(y@x=0.5)、v(x@y=0.5) 的 PINN 預測 + DNS 參考（同點位）。"""
+    dns = ref.dns_centerline(n)
+    t = dns["y"]
     pu = jnp.stack([jnp.full_like(jnp.array(t), 0.5), jnp.array(t)], axis=-1)
     pv = jnp.stack([jnp.array(t), jnp.full_like(jnp.array(t), 0.5)], axis=-1)
-    u = np.array(predict(params, static, pu)[:, 0])
-    v = np.array(predict(params, static, pv)[:, 1])
-    return {"y": t, "u": u, "x": t, "v": v}
+    u_pred = np.array(predict(params, static, pu)[:, 0])
+    v_pred = np.array(predict(params, static, pv)[:, 1])
+    return {"y": t, "u_pred": u_pred, "u_ref": dns["u"],
+            "x": t, "v_pred": v_pred, "v_ref": dns["v"]}
 
 
 def _rel_l2(a, b):
     a = np.asarray(a); b = np.asarray(b)
+    mask = np.isfinite(a) & np.isfinite(b)
+    a, b = a[mask], b[mask]
     return float(np.linalg.norm(a - b) / (np.linalg.norm(b) + 1e-12))
 
 
+def _max_err(a, b):
+    a = np.asarray(a); b = np.asarray(b)
+    mask = np.isfinite(a) & np.isfinite(b)
+    return float(np.max(np.abs(a[mask] - b[mask]))) if mask.any() else float("nan")
+
+
 def aggregate_metrics(params, static, fields):
-    """彙整跨演算法可比的標量指標。"""
+    """彙整跨演算法可比的標量指標（對照 DNS）。"""
     cl = centerline(params, static)
-    l2_u = _rel_l2(cl["u_pred"], cl["u_ghia"]); l2_v = _rel_l2(cl["v_pred"], cl["v_ghia"])
-    maxerr_u = float(np.max(np.abs(cl["u_pred"] - cl["u_ghia"])))
-    maxerr_v = float(np.max(np.abs(cl["v_pred"] - cl["v_ghia"])))
+    l2_u = _rel_l2(cl["u_pred"], cl["u_ref"]); l2_v = _rel_l2(cl["v_pred"], cl["v_ref"])
+    maxerr_u = _max_err(cl["u_pred"], cl["u_ref"]); maxerr_v = _max_err(cl["v_pred"], cl["v_ref"])
+
+    # 全場 rel-L2 vs DNS（DNS 唯一優勢：可比整個域，非僅中線）
+    XX, YY = fields["XX"], fields["YY"]
+    dU, dV, _ = ref.dns_field(XX, YY)
+    f_l2_u = _rel_l2(fields["U"], dU); f_l2_v = _rel_l2(fields["V"], dV)
+    spd_p = np.sqrt(fields["U"] ** 2 + fields["V"] ** 2)
+    spd_d = np.sqrt(np.nan_to_num(dU) ** 2 + np.nan_to_num(dV) ** 2)
+    f_l2_speed = _rel_l2(spd_p, spd_d)
 
     div = fields["div"]
     rx, ry, rc = fields["rx"], fields["ry"], fields["rc"]
     rms = lambda a: float(np.sqrt(np.mean(a ** 2)))
     vor = detect_vortices(fields)
-    ref = GHIA_RE1000
     pv = vor["primary"]
-    vortex_err = float(np.hypot(pv["x"] - ref["primary_vortex"][0],
-                                pv["y"] - ref["primary_vortex"][1]))
+    dns_vx, dns_vy = ref.dns_primary_vortex()
+    vortex_err = float(np.hypot(pv["x"] - dns_vx, pv["y"] - dns_vy))
     return {
         "rel_l2_u": l2_u, "rel_l2_v": l2_v,
         "max_err_u": maxerr_u, "max_err_v": maxerr_v,
+        "field_rel_l2_u": f_l2_u, "field_rel_l2_v": f_l2_v, "field_rel_l2_speed": f_l2_speed,
         "divergence_max": float(np.max(np.abs(div))),
         "divergence_mean": float(np.mean(np.abs(div))),
         "residual_rms_momx": rms(rx), "residual_rms_momy": rms(ry), "residual_rms_cont": rms(rc),
         "residual_max_cont": float(np.max(np.abs(rc))),
         "vorticity_min": float(np.min(fields["vort"])), "vorticity_max": float(np.max(fields["vort"])),
         "primary_vortex": [pv["x"], pv["y"]], "primary_psi": pv["psi"],
-        "primary_vortex_pos_err": vortex_err,
+        "primary_vortex_pos_err": vortex_err, "dns_primary_vortex": [dns_vx, dns_vy],
         "secondary_BL_present": vor["BL1"]["present"], "secondary_BR_present": vor["BR1"]["present"],
         "secondary_BL": [vor["BL1"]["x"], vor["BL1"]["y"]],
         "secondary_BR": [vor["BR1"]["x"], vor["BR1"]["y"]],

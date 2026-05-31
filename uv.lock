@@ -1117,6 +1117,8 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "optax" },
     { name = "pyyaml" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "soap-jax" },
 ]
 
@@ -1139,6 +1141,7 @@ requires-dist = [
     { name = "optax", specifier = ">=0.2.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "soap-jax", git = "https://github.com/haydn-jones/SOAP_JAX?rev=ddddc25724dfd629b0cd01584eca1e32ea8ac4de" },
 ]
 provides-extras = ["dev", "cuda"]
