@@ -47,9 +47,10 @@ echo "=== evaluate ==="
 uv run python -u scripts/evaluate.py --config "${CONFIG}" --state "${OUT}/state.pkl" --out "${OUT}"
 
 # SLURM 層級資源用量（host MaxRSS / Elapsed / NodeList），補 summary.json 的 GPU 記憶體
+# 用 || true：compute node 上 sacct 可能回非零，勿讓它在 set -e 下誤判整個 job 失敗
 echo "=== slurm resource usage ==="
-sacct -j "${SLURM_JOB_ID}" \
+{ sacct -j "${SLURM_JOB_ID}" \
   --format=JobID,JobName,State,Elapsed,MaxRSS,ReqMem,NNodes,NodeList,AllocGRES%20 \
-  2>/dev/null | tee "${OUT}/slurm_metrics.txt"
+  2>/dev/null | tee "${OUT}/slurm_metrics.txt"; } || true
 
 echo "[$(date '+%F %T')] pinn-cavity done"
