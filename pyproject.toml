@@ -1,0 +1,29 @@
+[project]
+name = "pinn-cavity"
+version = "0.1.0"
+description = "JAX PINN for 2D lid-driven cavity Re=1000"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "jax>=0.4.30",
+    "optax>=0.2.2",
+    "soap-jax @ git+https://github.com/haydn-jones/SOAP_JAX@ddddc25724dfd629b0cd01584eca1e32ea8ac4de",
+    "chex>=0.1.86",  # soap-jax 未宣告但 import 之相依
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# lab-server r740 GPU：head node 線上 `uv sync --extra cuda`（compute node 離線）
+cuda = ["jax[cuda12]>=0.4.30"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pinn_cavity"]
