@@ -99,4 +99,8 @@ def evaluate(params, static, out_dir="results"):
     ax.set_xlabel("x"); ax.set_ylabel("y"); fig.colorbar(cf, ax=ax)
     fig.tight_layout(); fig.savefig(f"{out_dir}/pressure.png", dpi=150); plt.close(fig)
 
-    return {"rel_l2_u": l2_u, "rel_l2_v": l2_v, "vortex": (cx, cy)}
+    metrics = {"rel_l2_u": l2_u, "rel_l2_v": l2_v, "vortex": [cx, cy]}
+    # 併入訓練端 summary.json，集中比較 wall time / memory / accuracy
+    from .metrics import update_summary
+    update_summary(os.path.join(out_dir, "summary.json"), {"accuracy": metrics})
+    return metrics

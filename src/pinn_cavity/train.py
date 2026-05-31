@@ -5,6 +5,7 @@ Observability：每 log_every 記 loss 與各殘差項到 stdout 與 history.csv
 """
 import os
 import csv
+import time
 import jax
 import optax
 
@@ -14,6 +15,7 @@ from .optimizers import build_optimizer
 from .geometry import make_sampler
 from .config import device_info, curriculum_stages, apply_runtime
 from .checkpoint import save_state, load_state
+from .metrics import device_memory_mb, config_snapshot, write_summary
 
 
 def _stage_offsets(stages):
@@ -110,6 +112,9 @@ def train(cfg, out_dir="results", resume_path=None):
         start_stage, start_step, resumed_opt_state = 0, 0, None
 
     csv_f, csv_w = _open_csv(os.path.join(out_dir, "history.csv"), resuming)
+    stage_records = []
+    steps_run = 0
+    t_total0 = time.time()
     try:
         for si in range(start_stage, len(stages)):
             re, steps = stages[si]
@@ -118,12 +123,35 @@ def train(cfg, out_dir="results", resume_path=None):
                 opt_state, s_begin = resumed_opt_state, start_step
             else:
                 opt_state, s_begin = opt.init(params), 0
+            t_stage0 = time.time()
             params, opt_state, key = _run_stage(
                 params, static, cfg, re, steps, key, sampler, opt, opt_state,
                 s_begin, offsets[si], si, out_dir, history, csv_w)
+            dt = time.time() - t_stage0
+            n = steps - s_begin
+            steps_run += n
+            stage_records.append({
+                "re": re, "steps": n, "wall_seconds": round(dt, 1),
+                "steps_per_sec": round(n / dt, 2) if dt > 0 else None,
+            })
             csv_f.flush()
             _save(out_dir, params, static, opt_state, key, si, steps, history)
     finally:
         csv_f.close()
+
+    wall_total = time.time() - t_total0
+    summary = {
+        "device": device_info(),
+        "config": config_snapshot(cfg),
+        "wall_seconds_total": round(wall_total, 1),
+        "steps_total": steps_run,
+        "steps_per_sec": round(steps_run / wall_total, 2) if wall_total > 0 else None,
+        "stages": stage_records,
+        "peak_memory_mb": device_memory_mb(),
+        "final_loss": history["loss"][-1] if history["loss"] else None,
+    }
+    write_summary(os.path.join(out_dir, "summary.json"), summary)
+    print(f"=== wall={wall_total:.1f}s steps={steps_run} "
+          f"({summary['steps_per_sec']}/s) mem={summary['peak_memory_mb']} ===")
 
     return params, static, history

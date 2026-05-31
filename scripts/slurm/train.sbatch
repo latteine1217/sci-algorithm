@@ -46,4 +46,10 @@ uv run python -u scripts/train.py --config "${CONFIG}" --out "${OUT}" ${RESUME}
 echo "=== evaluate ==="
 uv run python -u scripts/evaluate.py --config "${CONFIG}" --state "${OUT}/state.pkl" --out "${OUT}"
 
+# SLURM 層級資源用量（host MaxRSS / Elapsed / NodeList），補 summary.json 的 GPU 記憶體
+echo "=== slurm resource usage ==="
+sacct -j "${SLURM_JOB_ID}" \
+  --format=JobID,JobName,State,Elapsed,MaxRSS,ReqMem,NNodes,NodeList,AllocGRES%20 \
+  2>/dev/null | tee "${OUT}/slurm_metrics.txt"
+
 echo "[$(date '+%F %T')] pinn-cavity done"
