@@ -1,0 +1,44 @@
+# Ablation B+rwf：唯一變動 RWF off→on
+re: 1000.0
+lid_r: 10.0
+seed: 0
+x64: false
+weighting: fixed
+weight_ema: 0.9
+
+network:
+  width: 128
+  depth: 5
+  n_fourier: 128
+  fourier_sigma: 6.0
+  rwf: true
+  rwf_mu: 1.0
+  rwf_sigma: 0.1
+
+optimizer:
+  name: soap
+  learning_rate: 1.0e-3
+  b1: 0.95
+  b2: 0.95
+  weight_decay: 0.0
+  precondition_frequency: 10
+  decay_steps: 40000
+
+sampler:
+  name: boundary_refined
+  boundary_fraction: 0.4
+  boundary_width: 0.04
+  corner_fraction: 0.15
+
+train:
+  steps: 40000
+  n_collocation: 16384
+  resample_every: 200
+  weight_update_every: 1000
+  log_every: 500
+  checkpoint_every: 5000
+
+curriculum:
+  - {re: 100, steps: 10000}
+  - {re: 400, steps: 10000}
+  - {re: 1000, steps: 40000}
