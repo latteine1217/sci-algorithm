@@ -1,0 +1,41 @@
+# Ablation：無 Re curriculum，直攻 Re=1000 × 40000 步（其餘與 re1000.yaml 相同）
+re: 1000.0
+lid_r: 10.0
+seed: 0
+x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 下不可用，故 fp32
+weighting: gradnorm  # 自適應權重壓低連續殘差
+weight_ema: 0.9      # EMA 平滑，避免權重跳變
+
+network:
+  width: 256
+  depth: 6
+  n_fourier: 128
+  fourier_sigma: 6.0
+  rwf: true
+  rwf_mu: 1.0
+  rwf_sigma: 0.1
+
+optimizer:
+  name: soap
+  learning_rate: 1.0e-3
+  b1: 0.95
+  b2: 0.95
+  weight_decay: 0.0
+  precondition_frequency: 10
+  decay_steps: 40000
+
+sampler:
+  name: boundary_refined
+  boundary_fraction: 0.4
+  boundary_width: 0.04
+  corner_fraction: 0.15
+
+train:
+  steps: 40000           # curriculum 空 → 直攻 Re=1000 此步數
+  n_collocation: 16384
+  resample_every: 200
+  weight_update_every: 1000
+  log_every: 500
+  checkpoint_every: 5000
+
+curriculum: []           # 無暖機，直攻 Re=1000
