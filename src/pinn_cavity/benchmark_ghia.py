@@ -15,4 +15,8 @@ GHIA_RE1000 = {
           0.02526, -0.31966, -0.42665, -0.51550, -0.39188, -0.33714, -0.27669,
           -0.21388, 0.00000],
     "primary_vortex": (0.5313, 0.5625),  # Ghia Table 主渦心 (x,y)
+    "primary_psi": -0.117929,             # 主渦 stream-function 值（Ghia 正規化）
+    "primary_vorticity": -2.04968,        # 主渦心渦量
+    # 次渦中心 (x,y)：bottom-left / bottom-right（Re=1000）
+    "secondary_vortices": {"BL1": (0.0859, 0.0781), "BR1": (0.8594, 0.1094)},
 }

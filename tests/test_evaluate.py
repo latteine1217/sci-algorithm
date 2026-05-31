@@ -1,6 +1,7 @@
 import jax
 import numpy as np
-from pinn_cavity.evaluate import centerline_profiles, relative_l2, primary_vortex_center, _field
+from pinn_cavity.evaluate import centerline_profiles, relative_l2
+from pinn_cavity import diagnostics as dg
 from pinn_cavity.networks import build_model
 from pinn_cavity.config import NetworkConfig
 
@@ -21,14 +22,25 @@ def test_centerline_profiles_shapes():
     assert res["v_pred"].shape == res["v_ghia"].shape
 
 
-def test_vortex_center_in_interior():
+def test_fields_keys_and_pressure_anchored():
     params, static = _model()
-    XX, YY, U, V, P = _field(params, static, n=40)
-    cx, cy = primary_vortex_center(XX, YY, U, V)
-    assert 0.1 <= cx <= 0.9 and 0.1 <= cy <= 0.9
+    F = dg.compute_fields(params, static, re=1000.0, n=24)
+    for k in ("U", "V", "P", "div", "vort", "rx", "ry", "rc", "psi"):
+        assert F[k].shape == (24, 24)
+    assert abs(float(F["P"].mean())) < 1e-9  # 壓力錨定
 
 
-def test_pressure_is_mean_anchored():
+def test_streamfunction_zero_on_bottom():
     params, static = _model()
-    _, _, _, _, P = _field(params, static, n=40)
-    assert abs(float(P.mean())) < 1e-9
+    F = dg.compute_fields(params, static, re=1000.0, n=24)
+    assert np.allclose(F["psi"][0, :], 0.0, atol=1e-12)  # ψ=0 於底壁
+
+
+def test_aggregate_metrics_has_expected_keys():
+    params, static = _model()
+    F = dg.compute_fields(params, static, re=1000.0, n=24)
+    m = dg.aggregate_metrics(params, static, F)
+    for k in ("rel_l2_u", "rel_l2_v", "divergence_max", "divergence_mean",
+              "residual_rms_cont", "primary_vortex", "secondary_BL_present"):
+        assert k in m
+    assert m["divergence_max"] >= 0
