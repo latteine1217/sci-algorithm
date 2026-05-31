@@ -9,7 +9,9 @@
 - [x] 框架 v0.2：套用審查修正（27 tests pass）
 - [x] git + 推上 GitHub (private: latteine1217/sci-algorithm)
 - [x] SLURM 設施（scripts/slurm/submit_exp.sh + train.sbatch，target r740）
-- [ ] lab-server r740 正式收斂 run（configs/re1000.yaml）
+- [x] r740 正式 run #1（fp32 SOAP baseline, job 3765）— 管線通，**未達收斂**
+- [x] 結構化指標 summary.json（wall/mem/accuracy）+ EXPERIMENTS.md 對照表
+- [ ] 收斂改善：壓低連續殘差（見下）
 
 ## v0.2 審查修正（2026-05-31）
 - [x] **float64** 預設啟用（__init__；高 Re 標準）；連帶修 SOAP qr_dtype 對齊
