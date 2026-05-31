@@ -7,10 +7,13 @@ x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 
 weighting: fixed
 
 network:
-  width: 128
-  depth: 5
+  width: 256
+  depth: 6
   n_fourier: 128
   fourier_sigma: 6.0     # Re=1000 薄邊界層需較高頻
+  rwf: true              # Random Weight Factorization（改善條件數/收斂）
+  rwf_mu: 1.0
+  rwf_sigma: 0.1
 
 optimizer:
   name: soap

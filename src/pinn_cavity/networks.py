@@ -22,20 +22,54 @@ def _glorot(key, shape):
     return jax.random.normal(key, shape) * scale
 
 
+def _init_weight(key, shape, rwf, mu, sigma):
+    """回傳 (W_or_V, g)。rwf 時 W=V·exp(g)，初始等同 Glorot；否則 g=None。"""
+    kw, kg = jax.random.split(key)
+    W = _glorot(kw, shape)
+    if not rwf:
+        return W, None
+    g = mu + sigma * jax.random.normal(kg, (shape[1],))  # 每輸出神經元尺度
+    V = W / jnp.exp(g)  # 使 V·exp(g)=W_glorot（沿輸出維廣播）
+    return V, g
+
+
+def _mat(W, g):
+    """重建有效權重：rwf 時 W·exp(g)，否則 W。"""
+    return W if g is None else W * jnp.exp(g)
+
+
 def init_params(key, net_cfg):
-    """初始化 Modified MLP 可訓練參數（不含 B）。輸入維度 = 2*n_fourier。"""
+    """初始化 Modified MLP 可訓練參數（不含 B）。輸入維度 = 2*n_fourier。
+
+    rwf=True 時各權重以 (V, g) 因式分解保存（Random Weight Factorization）。
+    """
     width, depth, nf = net_cfg.width, net_cfg.depth, net_cfg.n_fourier
+    rwf = getattr(net_cfg, "rwf", False)
+    mu = getattr(net_cfg, "rwf_mu", 1.0)
+    sigma = getattr(net_cfg, "rwf_sigma", 0.1)
     keys = jax.random.split(key, 5 + depth)
     in_dim = 2 * nf
     params = {}
-    params["Wu"] = _glorot(keys[0], (in_dim, width)); params["bu"] = jnp.zeros(width)
-    params["Wv"] = _glorot(keys[1], (in_dim, width)); params["bv"] = jnp.zeros(width)
-    params["W0"] = _glorot(keys[2], (in_dim, width)); params["b0"] = jnp.zeros(width)
-    params["Wh"] = []; params["bh"] = []
+
+    def add(name, k, shape, bias_dim):
+        W, g = _init_weight(k, shape, rwf, mu, sigma)
+        params[name] = W
+        params["b" + name[1:]] = jnp.zeros(bias_dim)
+        if g is not None:
+            params[name + "_g"] = g
+
+    add("Wu", keys[0], (in_dim, width), width)
+    add("Wv", keys[1], (in_dim, width), width)
+    add("W0", keys[2], (in_dim, width), width)
+    params["Wh"] = []; params["bh"] = []; params["Wh_g"] = []
     for i in range(depth - 1):
-        params["Wh"].append(_glorot(keys[3 + i], (width, width)))
-        params["bh"].append(jnp.zeros(width))
-    params["Wout"] = _glorot(keys[-1], (width, 3)); params["bout"] = jnp.zeros(3)
+        W, g = _init_weight(keys[3 + i], (width, width), rwf, mu, sigma)
+        params["Wh"].append(W); params["bh"].append(jnp.zeros(width))
+        if g is not None:
+            params["Wh_g"].append(g)
+    add("Wout", keys[-1], (width, 3), 3)
+    if not params["Wh_g"]:
+        del params["Wh_g"]  # 非 rwf 不留空 list
     return params
 
 
@@ -53,16 +87,22 @@ def _fourier(B, xy):
     return jnp.concatenate([jnp.cos(proj), jnp.sin(proj)], axis=-1)
 
 
+def _w(params, name):
+    """取有效權重，自動套 RWF（若有 name+"_g"）。"""
+    return _mat(params[name], params.get(name + "_g"))
+
+
 def forward(params, static, xy):
     """Modified MLP 原始輸出 (u_hat,v_hat,p_hat)，xy: (...,2) -> (...,3)。"""
     h_in = _fourier(static.B, xy)
-    U = jnp.tanh(h_in @ params["Wu"] + params["bu"])
-    V = jnp.tanh(h_in @ params["Wv"] + params["bv"])
-    H = jnp.tanh(h_in @ params["W0"] + params["b0"])
-    for Wh, bh in zip(params["Wh"], params["bh"]):
-        Z = jnp.tanh(H @ Wh + bh)
+    U = jnp.tanh(h_in @ _w(params, "Wu") + params["bu"])
+    V = jnp.tanh(h_in @ _w(params, "Wv") + params["bv"])
+    H = jnp.tanh(h_in @ _w(params, "W0") + params["b0"])
+    hg = params.get("Wh_g")
+    for i, (Wh, bh) in enumerate(zip(params["Wh"], params["bh"])):
+        Z = jnp.tanh(H @ _mat(Wh, hg[i] if hg is not None else None) + bh)
         H = (1.0 - Z) * U + Z * V
-    return H @ params["Wout"] + params["bout"]
+    return H @ _w(params, "Wout") + params["bout"]
 
 
 def predict(params, static, xy):

@@ -14,6 +14,9 @@ class NetworkConfig:
     depth: int = 4
     n_fourier: int = 64
     fourier_sigma: float = 5.0  # Re=1000 薄邊界層需較高頻；過低會欠解析
+    rwf: bool = False           # Random Weight Factorization（Wang et al. 2023）
+    rwf_mu: float = 1.0         # 尺度 g~N(μ,σ)；W = V·exp(g)
+    rwf_sigma: float = 0.1
 
 
 @dataclass

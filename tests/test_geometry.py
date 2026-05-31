@@ -15,6 +15,15 @@ def test_distance_positive_interior():
     assert float(d) > 0.0
 
 
+def test_distance_approximates_true_sdf_near_wall():
+    # 近左壁 φ≈x（單位梯度，像真 SDF 線性衰減）
+    d = distance_fn(jnp.array(0.02), jnp.array(0.5))
+    assert abs(float(d) - 0.02) < 5e-3
+    # 近底壁 φ≈y
+    d2 = distance_fn(jnp.array(0.5), jnp.array(0.03))
+    assert abs(float(d2) - 0.03) < 5e-3
+
+
 def test_lid_profile_corners_and_center():
     g0 = lid_profile(jnp.array(0.0), r=10.0)
     g1 = lid_profile(jnp.array(1.0), r=10.0)

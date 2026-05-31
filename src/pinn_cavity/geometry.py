@@ -12,8 +12,19 @@ import jax.numpy as jnp
 # ---- 幾何基元 ----
 
 def distance_fn(x, y):
-    """D(x,y)=x(1-x)y(1-y)，四壁為 0、內部為正。"""
-    return x * (1.0 - x) * y * (1.0 - y)
+    """平滑正規化距離函數（Sukumar & Srivastava 2022），近似 SDF。
+
+    φ = Πfᵢ / sqrt(Σᵢ (Π_{j≠i} fⱼ)²)，f = [x, 1-x, y, 1-y]。
+    性質：四壁為 0、內部為正、近壁 |∇φ|≈1（線性衰減如真 SDF）、全域 C∞ 可微。
+    取代純乘積 ADF x(1-x)y(1-y)（往角落二次衰減過快、條件數差）。
+    真 min-SDF 在對角線不可微，會污染 hard-BC 後的二階導，故不用。
+    """
+    fl, fr = x, 1.0 - x
+    fb, ft = y, 1.0 - y
+    prod = fl * fr * fb * ft
+    denom_sq = ((fr * fb * ft) ** 2 + (fl * fb * ft) ** 2
+                + (fl * fr * ft) ** 2 + (fl * fr * fb) ** 2)
+    return prod / jnp.sqrt(denom_sq + 1e-12)
 
 
 def lid_profile(x, r: float = 10.0):
