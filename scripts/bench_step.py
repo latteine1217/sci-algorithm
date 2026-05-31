@@ -9,7 +9,7 @@ import time
 import argparse
 import jax
 import optax
-from pinn_cavity.config import load_config
+from pinn_cavity.config import load_config, apply_runtime
 from pinn_cavity.networks import build_model
 from pinn_cavity.losses import total_loss, init_weights
 from pinn_cavity.optimizers import build_optimizer
@@ -22,6 +22,7 @@ def main():
     ap.add_argument("--steps", type=int, default=20)
     args = ap.parse_args()
     cfg = load_config(args.config)
+    apply_runtime(cfg)  # 依 config 設 x64（須在建任何陣列前）
 
     x64 = jax.config.read("jax_enable_x64")
     print(f"backend={jax.default_backend()} x64={x64} devices={jax.devices()}")
