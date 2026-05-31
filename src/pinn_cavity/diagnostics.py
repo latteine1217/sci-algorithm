@@ -96,6 +96,16 @@ def centerline(params, static):
             "x": xs, "v_pred": v_pred, "v_ghia": np.array(g["v"])}
 
 
+def centerline_dense(params, static, n=201):
+    """密採樣中線 u(y@x=0.5)、v(x@y=0.5)，供平滑繪圖（非 L2，L2 用 Ghia 17 點）。"""
+    t = np.linspace(0.0, 1.0, n)
+    pu = jnp.stack([jnp.full_like(jnp.array(t), 0.5), jnp.array(t)], axis=-1)
+    pv = jnp.stack([jnp.array(t), jnp.full_like(jnp.array(t), 0.5)], axis=-1)
+    u = np.array(predict(params, static, pu)[:, 0])
+    v = np.array(predict(params, static, pv)[:, 1])
+    return {"y": t, "u": u, "x": t, "v": v}
+
+
 def _rel_l2(a, b):
     a = np.asarray(a); b = np.asarray(b)
     return float(np.linalg.norm(a - b) / (np.linalg.norm(b) + 1e-12))

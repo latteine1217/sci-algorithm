@@ -1,18 +1,19 @@
 # lab-server GPU (r740) 正式訓練配置
-# 基線策略：weighting=fixed 先跑通，確認後再試 gradnorm/ntk。
+# 勝出配置（ablation 2026-05-31）：SDF + RWF + fixed 權重 + 128×5 + curriculum。
+# 註：gradnorm 經 ablation 證實會毀掉收斂（L2 0.14→0.47），故用 fixed。
 re: 1000.0
 lid_r: 10.0
 seed: 0
 x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 下不可用，故 fp32
-weighting: gradnorm  # 自適應權重壓低連續殘差
-weight_ema: 0.9      # EMA 平滑，避免權重跳變
+weighting: fixed     # ablation：fixed 勝 gradnorm
+weight_ema: 0.9
 
 network:
-  width: 256
-  depth: 6
+  width: 128
+  depth: 5
   n_fourier: 128
   fourier_sigma: 6.0     # Re=1000 薄邊界層需較高頻
-  rwf: true              # Random Weight Factorization（改善條件數/收斂）
+  rwf: true              # RWF：ablation 證實有小幫助（0.141→0.119）
   rwf_mu: 1.0
   rwf_sigma: 0.1
 

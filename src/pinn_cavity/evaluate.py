@@ -41,14 +41,15 @@ def _read_history(path):
 
 # ---------- 繪圖 ----------
 
-def _plot_centerlines(prof, path):
+def _plot_centerlines(prof, dense, path):
+    """PINN 密採樣畫平滑曲線；Ghia 17 點畫散點（L2 仍以 17 點計）。"""
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-    ax[0].plot(prof["u_pred"], prof["y"], "b-", label="PINN")
-    ax[0].plot(prof["u_ghia"], prof["y"], "ro", label="Ghia 1982")
+    ax[0].plot(dense["u"], dense["y"], "b-", lw=1.5, label="PINN")
+    ax[0].plot(prof["u_ghia"], prof["y"], "ro", ms=5, label="Ghia 1982")
     ax[0].set_xlabel("u"); ax[0].set_ylabel("y"); ax[0].set_title("u at x=0.5"); ax[0].legend()
-    ax[1].plot(prof["x"], prof["v_pred"], "b-", label="PINN")
-    ax[1].plot(prof["x"], prof["v_ghia"], "ro", label="Ghia 1982")
+    ax[1].plot(dense["x"], dense["v"], "b-", lw=1.5, label="PINN")
+    ax[1].plot(prof["x"], prof["v_ghia"], "ro", ms=5, label="Ghia 1982")
     ax[1].set_xlabel("x"); ax[1].set_ylabel("v"); ax[1].set_title("v at y=0.5"); ax[1].legend()
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
@@ -198,10 +199,11 @@ def evaluate(params, static, re=1000.0, out_dir="results", history_path=None, gr
     vor = dg.detect_vortices(F)
     metrics = dg.aggregate_metrics(params, static, F)
     prof = dg.centerline(params, static)
+    dense = dg.centerline_dense(params, static)
     hist = _read_history(history_path or os.path.join(out_dir, "history.csv"))
 
     # 圖
-    _plot_centerlines(prof, f"{out_dir}/centerlines.png")
+    _plot_centerlines(prof, dense, f"{out_dir}/centerlines.png")
     _plot_field(F, vor, f"{out_dir}/field.png")
     _plot_scalar(F["XX"], F["YY"], F["P"], "Pressure (mean-anchored)", "RdBu_r", f"{out_dir}/pressure.png")
     _plot_scalar(F["XX"], F["YY"], F["vort"], "Vorticity", "RdBu_r", f"{out_dir}/vorticity.png")
