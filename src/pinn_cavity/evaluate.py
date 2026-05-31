@@ -65,7 +65,8 @@ def _plot_field(F, vor, path):
         if vor[k]["present"]:
             ax.plot([vor[k]["x"]], [vor[k]["y"]], "y x", ms=8)
     ax.set_title("Velocity magnitude & streamlines (Re=1000)")
-    ax.set_xlabel("x"); ax.set_ylabel("y"); fig.colorbar(cf, ax=ax)
+    ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_aspect("equal")  # 正方形 domain
+    fig.colorbar(cf, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
 
@@ -82,7 +83,8 @@ def _plot_scalar(XX, YY, Z, title, cmap, path, marks=None, log=False):
     if marks:
         for (mx, my) in marks:
             ax.plot([mx], [my], "k+", ms=10)
-    ax.set_title(title); ax.set_xlabel("x"); ax.set_ylabel("y"); fig.colorbar(cf, ax=ax)
+    ax.set_title(title); ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_aspect("equal")
+    fig.colorbar(cf, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
 
@@ -92,7 +94,8 @@ def _plot_streamfunction(F, vor, path):
     cs = ax.contour(F["XX"], F["YY"], F["psi"], levels=25, colors="k", linewidths=0.5)
     p = vor["primary"]; ax.plot([p["x"]], [p["y"]], "r+", ms=12)
     gx, gy = GHIA_RE1000["primary_vortex"]; ax.plot([gx], [gy], "bo", ms=6, label="Ghia primary")
-    ax.set_title("Stream function (Re=1000)"); ax.set_xlabel("x"); ax.set_ylabel("y"); ax.legend()
+    ax.set_title("Stream function (Re=1000)"); ax.set_xlabel("x"); ax.set_ylabel("y")
+    ax.set_aspect("equal"); ax.legend()
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
 
@@ -105,7 +108,8 @@ def _plot_residuals(F, path):
         Z = np.abs(F[key]) + 1e-12
         cf = a.contourf(F["XX"], F["YY"], Z, levels=np.logspace(np.log10(Z.min()),
                         np.log10(Z.max()), 25), norm=LogNorm(), cmap="magma")
-        a.set_title(t); a.set_xlabel("x"); a.set_ylabel("y"); fig.colorbar(cf, ax=a)
+        a.set_title(t); a.set_xlabel("x"); a.set_ylabel("y"); a.set_aspect("equal")
+        fig.colorbar(cf, ax=a, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
 
