@@ -47,10 +47,12 @@ def _run_stage(params, static, cfg, re, steps, key, sampler, opt, opt_state,
                start_step, offset, stage_idx, out_dir, history, csv_w):
     """跑單一 curriculum 階段，回傳 (params, opt_state, key)。"""
 
+    mode = cfg.autodiff
+
     @jax.jit
     def step(params, opt_state, xy, weights):
         L, grads = jax.value_and_grad(
-            lambda p: total_loss(p, static, xy, weights, re)
+            lambda p: total_loss(p, static, xy, weights, re, mode)
         )(params)
         updates, opt_state = opt.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
@@ -65,13 +67,13 @@ def _run_stage(params, static, cfg, re, steps, key, sampler, opt, opt_state,
             key, sk = jax.random.split(key)
             xy = sampler(sk, cfg.train.n_collocation)
         if cfg.weighting != "fixed" and it % cfg.train.weight_update_every == 0 and it > 0:
-            new_w = update_weights(params, static, xy, re, method=cfg.weighting)
+            new_w = update_weights(params, static, xy, re, method=cfg.weighting, mode=mode)
             weights = ema_blend(weights, new_w, cfg.weight_ema)  # 平滑，避免權重跳變
 
         params, opt_state, L = step(params, opt_state, xy, weights)
 
         if it % cfg.train.log_every == 0 or it == steps - 1:
-            lx, ly, lc = loss_terms(params, static, xy, re)
+            lx, ly, lc = loss_terms(params, static, xy, re, mode)
             gstep = offset + it
             history["step"].append(gstep); history["loss"].append(float(L))
             history["lx"].append(float(lx)); history["ly"].append(float(ly)); history["lc"].append(float(lc))

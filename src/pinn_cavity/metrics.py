@@ -34,6 +34,7 @@ def config_snapshot(cfg):
         "x64": bool(cfg.x64),
         "weighting": cfg.weighting,
         "weight_ema": cfg.weight_ema,
+        "autodiff": cfg.autodiff,
         "rwf": getattr(cfg.network, "rwf", False),
         "optimizer": cfg.optimizer.name,
         "sampler": cfg.sampler.name,

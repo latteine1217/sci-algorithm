@@ -29,3 +29,13 @@ def test_continuity_matches_finite_difference():
     vy = (vel(p0 + jnp.array([[0, eps]]))[1] - vel(p0 - jnp.array([[0, eps]]))[1]) / (2 * eps)
     _, _, rc = ns_residuals(params, static, p0, re=1000.0)
     assert jnp.allclose(rc[0], ux + vy, atol=1e-3)
+
+
+def test_autodiff_modes_agree():
+    # forward-over-reverse 與完整 Hessian 必須給相同殘差
+    params, static = _model(2)
+    xy = jax.random.uniform(jax.random.PRNGKey(7), (16, 2))
+    a = ns_residuals(params, static, xy, re=1000.0, mode="fwd_over_rev")
+    b = ns_residuals(params, static, xy, re=1000.0, mode="hessian")
+    for ra, rb in zip(a, b):
+        assert jnp.allclose(ra, rb, atol=1e-5)

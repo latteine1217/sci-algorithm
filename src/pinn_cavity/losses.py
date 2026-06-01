@@ -9,9 +9,9 @@ import jax.numpy as jnp
 from .physics import ns_residuals
 
 
-def loss_terms(params, static, xy, re):
+def loss_terms(params, static, xy, re, mode="fwd_over_rev"):
     """回傳 (Lx, Ly, Lc) 三項殘差 MSE 純量。"""
-    rx, ry, rc = ns_residuals(params, static, xy, re=re)
+    rx, ry, rc = ns_residuals(params, static, xy, re=re, mode=mode)
     return jnp.mean(rx ** 2), jnp.mean(ry ** 2), jnp.mean(rc ** 2)
 
 
@@ -25,8 +25,8 @@ def ema_blend(old, new, alpha):
     return {k: alpha * old[k] + (1.0 - alpha) * new[k] for k in old}
 
 
-def total_loss(params, static, xy, weights, re):
-    lx, ly, lc = loss_terms(params, static, xy, re=re)
+def total_loss(params, static, xy, weights, re, mode="fwd_over_rev"):
+    lx, ly, lc = loss_terms(params, static, xy, re=re, mode=mode)
     return weights["x"] * lx + weights["y"] * ly + weights["c"] * lc
 
 
@@ -46,15 +46,15 @@ def _balance(sx, sy, sc):
 WEIGHTERS = ("fixed", "gradnorm", "ntk")
 
 
-def update_weights(params, static, xy, re, method="gradnorm"):
+def update_weights(params, static, xy, re, method="gradnorm", mode="fwd_over_rev"):
     """回傳新權重 dict（jnp 陣列）。"""
     if method == "fixed":
         return init_weights()
     if method not in ("gradnorm", "ntk"):
         raise ValueError(f"unknown weighting method: {method} (available: {WEIGHTERS})")
-    gx = _grad_norm(lambda p: loss_terms(p, static, xy, re)[0], params)
-    gy = _grad_norm(lambda p: loss_terms(p, static, xy, re)[1], params)
-    gc = _grad_norm(lambda p: loss_terms(p, static, xy, re)[2], params)
+    gx = _grad_norm(lambda p: loss_terms(p, static, xy, re, mode)[0], params)
+    gy = _grad_norm(lambda p: loss_terms(p, static, xy, re, mode)[1], params)
+    gc = _grad_norm(lambda p: loss_terms(p, static, xy, re, mode)[2], params)
     if method == "gradnorm":            # learning-rate annealing（Wang et al. 2021）
         return _balance(gx, gy, gc)
     return _balance(gx ** 2, gy ** 2, gc ** 2)  # ntk 對角近似（Wang et al. 2022）
