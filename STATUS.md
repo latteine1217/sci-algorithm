@@ -9,9 +9,16 @@
 - [x] 框架 v0.2：套用審查修正（27 tests pass）
 - [x] git + 推上 GitHub (private: latteine1217/sci-algorithm)
 - [x] SLURM 設施（scripts/slurm/submit_exp.sh + train.sbatch，target r740）
-- [x] r740 正式 run #1（fp32 SOAP baseline, job 3765）— 管線通，**未達收斂**
+- [x] r740 正式 run #1（fp32 SOAP baseline, job 3765）— 管線通，未達收斂
 - [x] 結構化指標 summary.json（wall/mem/accuracy）+ EXPERIMENTS.md 對照表
-- [ ] 收斂改善：壓低連續殘差（見下）
+- [x] ablation（gradnorm/rwf/big/base）— **gradnorm 是元兇**，簡單版勝出
+- [x] 改用自家 Lethe DNS 參考（cosh r=10，apples-to-apples）取代 Ghia
+- [x] **定案 run（re1000-final, job 3792）：DNS field-L2 ~0.08、渦心準、次渦齊全**
+
+## 第一階段「先收斂出好結果」：完成 ✅
+勝出配置 = SDF + RWF + fixed 權重 + 128×5 + curriculum（= configs/re1000.yaml）。
+對 DNS：field-L2 u/v≈0.05–0.08（run 間變異）、中線 L2≈0.06–0.09、主渦誤差<0.012、
+底/右下次渦齊全。殘餘誤差集中於底部邊界層。下一步：演算法優化研究。
 
 ## v0.2 審查修正（2026-05-31）
 - [x] **float64** 預設啟用（__init__；高 Re 標準）；連帶修 SOAP qr_dtype 對齊

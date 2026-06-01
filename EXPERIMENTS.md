@@ -11,6 +11,19 @@
 
 參考：Ghia 1982 主渦心 (0.531, 0.563)。*streamfunction 法估。
 
+## 定案（2026-05-31，對照 DNS）
+換成自家 Lethe DNS（cosh r=10 lid，apples-to-apples）後重新評估：
+
+| 實驗 | 配置 | field-L2 u/v | 中線 L2 u/v | 渦心誤差 | wall |
+|------|------|--------------|-------------|----------|------|
+| abl-rwf (3783) | SDF+RWF+fixed+128×5+curric | 0.052/0.057 | 0.061/0.063 | 0.007 | ~1.6h |
+| **re1000-final (3792)** | 同上（重跑定案） | **0.082/0.084** | 0.090/0.082 | 0.012 | 55min |
+
+- **第一階段達標**：對 DNS field-L2 ~0.05–0.08（run 間變異，fp32 GPU 非決定性），渦心準、次渦齊全。
+- 先前 vs Ghia 的 12-15% 有一半是 cosh/sharp lid 參考錯配假象。
+- 殘餘誤差集中於底部邊界層（error_map）；要 <5% 的槓桿是 BL 加密/加步數。
+- 定案配置 = configs/re1000.yaml。checkpoint 在 lab-server:~/sci-algorithm/results/re1000-final/state.pkl。
+
 ## 關鍵發現（2026-05-31）
 - **全套優化反而比簡單 baseline 差**：3769/3775 的 rel-L2 都輸 3765，儘管訓練 PDE 殘差低 100×（lc~1e-4）。
 - **「收斂≠正確」教科書案例**：殘差壓低未逼出正確速度量值。
