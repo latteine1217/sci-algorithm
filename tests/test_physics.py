@@ -32,10 +32,11 @@ def test_continuity_matches_finite_difference():
 
 
 def test_autodiff_modes_agree():
-    # forward-over-reverse 與完整 Hessian 必須給相同殘差
+    # 三種模式（fwd_over_rev / hessian / taylor）必須給相同殘差
     params, static = _model(2)
     xy = jax.random.uniform(jax.random.PRNGKey(7), (16, 2))
-    a = ns_residuals(params, static, xy, re=1000.0, mode="fwd_over_rev")
-    b = ns_residuals(params, static, xy, re=1000.0, mode="hessian")
-    for ra, rb in zip(a, b):
-        assert jnp.allclose(ra, rb, atol=1e-5)
+    ref = ns_residuals(params, static, xy, re=1000.0, mode="hessian")
+    for mode in ("fwd_over_rev", "taylor"):
+        got = ns_residuals(params, static, xy, re=1000.0, mode=mode)
+        for rg, rr in zip(got, ref):
+            assert jnp.allclose(rg, rr, atol=1e-5), f"{mode} mismatch"

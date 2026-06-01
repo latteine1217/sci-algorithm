@@ -16,6 +16,7 @@
 """
 import jax
 import jax.numpy as jnp
+from jax.experimental import jet
 from .networks import predict
 
 
@@ -51,6 +52,29 @@ def _residual_hessian(params, static, xy_pt, re):
     return _assemble(val, jac, lap, re)
 
 
+def _residual_taylor(params, static, xy_pt, re):
+    """Taylor-mode（Forward-Laplacian, jax.experimental.jet）：
+
+    沿各座標單位向量 e_i 做二階 Taylor 前向，一次拿到 value、Jacobian 第 i 列、
+    與二階方向導 D²f(e_i,e_i)；對 i 加總即 Laplacian。前向模式、不建二階反向圖，
+    高維/高階時記憶體與算力優勢顯著（STDE / Forward Laplacian）。
+    """
+    f = _field_fn(params, static)
+    n = xy_pt.shape[0]
+    eye = jnp.eye(n, dtype=xy_pt.dtype)
+
+    def along(e):
+        f0, series = jet.jet(f, (xy_pt,), ((e, jnp.zeros_like(e)),))
+        d1, d2 = series[0], series[1]   # d1=Df·e（Jacobian 第 i 列）, d2=D²f(e,e)
+        return f0, d1, d2
+
+    f0, d1, d2 = jax.vmap(along)(eye)   # (n,3) each
+    val = f0[0]
+    jac = d1.T                          # (3,n): jac[k,i]=Df_k·e_i
+    lap = d2.sum(axis=0)               # (3,) = Σ_i D²f(e_i,e_i)
+    return _assemble(val, jac, lap, re)
+
+
 def _assemble(val, jac, lap, re):
     u, v = val[0], val[1]
     u_x, u_y = jac[0, 0], jac[0, 1]
@@ -63,7 +87,8 @@ def _assemble(val, jac, lap, re):
     return mom_x, mom_y, cont
 
 
-_MODES = {"fwd_over_rev": _residual_fwd_over_rev, "hessian": _residual_hessian}
+_MODES = {"fwd_over_rev": _residual_fwd_over_rev, "hessian": _residual_hessian,
+          "taylor": _residual_taylor}
 
 
 def ns_residuals(params, static, xy, re: float, mode: str = "fwd_over_rev"):

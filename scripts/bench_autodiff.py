@@ -19,7 +19,7 @@ from pinn_cavity.metrics import device_memory_mb
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
-    ap.add_argument("--mode", required=True, choices=["fwd_over_rev", "hessian"])
+    ap.add_argument("--mode", required=True, choices=["fwd_over_rev", "hessian", "taylor"])
     ap.add_argument("--steps", type=int, default=30)
     args = ap.parse_args()
     cfg = load_config(args.config); apply_runtime(cfg)
