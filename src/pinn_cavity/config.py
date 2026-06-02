@@ -56,7 +56,7 @@ class Config:
     x64: bool = True
     weighting: str = "fixed"     # registry: losses.WEIGHTERS（fixed/gradnorm/ntk）
     weight_ema: float = 0.9      # 權重 EMA 平滑係數：w←ema·w + (1-ema)·new
-    autodiff: str = "fwd_over_rev"  # physics 二階導模式：fwd_over_rev（只算 Laplacian）/ hessian（完整）
+    autodiff: str = "taylor"  # physics 二階導模式：taylor（jet/Forward-Laplacian，3×快2.9×省記憶體）/ fwd_over_rev / hessian
     curriculum: list = field(default_factory=list)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)

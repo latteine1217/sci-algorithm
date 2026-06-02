@@ -7,6 +7,7 @@ seed: 0
 x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 下不可用，故 fp32
 weighting: fixed     # ablation：fixed 勝 gradnorm
 weight_ema: 0.9
+autodiff: taylor     # bench: 16ms vs hessian 50ms，peak 1285MB vs 3686MB（3.1×快、2.9×省記憶體）
 
 network:
   width: 128
