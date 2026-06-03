@@ -45,4 +45,8 @@ train:
   log_every: 500
   checkpoint_every: 5000
 
-curriculum: []        # 直攻 Re=1000（與 re1000.yaml 一致）
+# curriculum 必要（job 3892 證實直攻會 spurious）
+curriculum:
+  - {re: 100, steps: 10000}
+  - {re: 400, steps: 10000}
+  - {re: 1000, steps: 40000}

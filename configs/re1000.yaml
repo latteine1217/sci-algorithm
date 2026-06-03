@@ -41,5 +41,9 @@ train:
   log_every: 500
   checkpoint_every: 5000
 
-# 直攻 Re=1000（無 curriculum）：勝出配置 + taylor 下直接訓練 40k 步
-curriculum: []
+# curriculum 必要！乾淨測試（job 3892）證實：直攻 Re=1000 → field-L2 1.0（spurious 解），
+# 有 curriculum → 0.045。暖機 Re=100→400 把網路導進正確 basin，不可省。
+curriculum:
+  - {re: 100, steps: 10000}
+  - {re: 400, steps: 10000}
+  - {re: 1000, steps: 40000}
