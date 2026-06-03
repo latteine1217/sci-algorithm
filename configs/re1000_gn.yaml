@@ -1,0 +1,51 @@
+# GN 對照實驗：optimizer_mode=gn，其餘與 re1000.yaml 完全相同（乾淨 ablation）
+# profile 結果：SOAP 佔 61% full step（optimizer 是瓶頸）
+# GN cg=10：200ms vs SOAP 37ms（5.4×貴）→ 需要 ≥5.4× 更少步才划算
+re: 1000.0
+lid_r: 10.0
+seed: 0
+x64: false
+weighting: fixed
+weight_ema: 0.9
+autodiff: taylor
+optimizer_mode: gn
+gn_cg_iters: 10       # 200ms/step；cg=5 是 116ms（若收斂率不受影響可降）
+gn_lr: 1.0
+gn_damping: 1.0e-3
+
+network:
+  width: 128
+  depth: 5
+  n_fourier: 128
+  fourier_sigma: 6.0
+  rwf: true
+  rwf_mu: 1.0
+  rwf_sigma: 0.1
+
+optimizer:            # GN 模式下 optimizer 欄位不使用，保留以相容 config 載入
+  name: soap
+  learning_rate: 1.0e-3
+  b1: 0.95
+  b2: 0.95
+  weight_decay: 0.0
+  precondition_frequency: 10
+  decay_steps: 40000
+
+sampler:
+  name: boundary_refined
+  boundary_fraction: 0.4
+  boundary_width: 0.04
+  corner_fraction: 0.15
+
+train:
+  steps: 40000
+  n_collocation: 16384
+  resample_every: 200
+  weight_update_every: 1000
+  log_every: 500
+  checkpoint_every: 5000
+
+curriculum:
+  - {re: 100, steps: 10000}
+  - {re: 400, steps: 10000}
+  - {re: 1000, steps: 40000}

@@ -12,6 +12,7 @@ import optax
 from .networks import build_model, NetStatic
 from .losses import total_loss, loss_terms, update_weights, init_weights, ema_blend
 from .optimizers import build_optimizer
+from .natural_gradient import gn_step
 from .geometry import make_sampler
 from .config import device_info, curriculum_stages, apply_runtime
 from .checkpoint import save_state, load_state
@@ -48,15 +49,25 @@ def _run_stage(params, static, cfg, re, steps, key, sampler, opt, opt_state,
     """跑單一 curriculum 階段，回傳 (params, opt_state, key)。"""
 
     mode = cfg.autodiff
+    opt_mode = getattr(cfg, "optimizer_mode", "soap")
+    gn_cg = getattr(cfg, "gn_cg_iters", 20)
+    gn_lr = getattr(cfg, "gn_lr", 1.0)
+    gn_damping = getattr(cfg, "gn_damping", 1e-3)
 
-    @jax.jit
-    def step(params, opt_state, xy, weights):
-        L, grads = jax.value_and_grad(
-            lambda p: total_loss(p, static, xy, weights, re, mode)
-        )(params)
-        updates, opt_state = opt.update(grads, opt_state, params)
-        params = optax.apply_updates(params, updates)
-        return params, opt_state, L
+    if opt_mode == "gn":
+        @jax.jit
+        def step(params, opt_state, xy, weights):
+            new_params, L = gn_step(params, static, xy, re, mode, gn_lr, gn_cg, True, gn_damping)
+            return new_params, opt_state, L
+    else:
+        @jax.jit
+        def step(params, opt_state, xy, weights):
+            L, grads = jax.value_and_grad(
+                lambda p: total_loss(p, static, xy, weights, re, mode)
+            )(params)
+            updates, opt_state = opt.update(grads, opt_state, params)
+            params = optax.apply_updates(params, updates)
+            return params, opt_state, L
 
     key, sk = jax.random.split(key)
     xy = sampler(sk, cfg.train.n_collocation)

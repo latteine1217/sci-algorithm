@@ -57,6 +57,10 @@ class Config:
     weighting: str = "fixed"     # registry: losses.WEIGHTERS（fixed/gradnorm/ntk）
     weight_ema: float = 0.9      # 權重 EMA 平滑係數：w←ema·w + (1-ema)·new
     autodiff: str = "taylor"  # physics 二階導模式：taylor（jet/Forward-Laplacian，3×快2.9×省記憶體）/ fwd_over_rev / hessian
+    optimizer_mode: str = "soap"  # soap（一階，SOAP）/ gn（matrix-free Gauss-Newton）
+    gn_cg_iters: int = 10        # GN：CG 迭代數（tradeoff per-step cost vs 解精度）
+    gn_lr: float = 1.0           # GN：步長（Levenberg-Marquardt scaling）
+    gn_damping: float = 1e-3     # GN：LM damping λ（穩定化）
     curriculum: list = field(default_factory=list)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
