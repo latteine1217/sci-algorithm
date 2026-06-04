@@ -26,8 +26,10 @@ class OptimizerConfig:
     b1: float = 0.95
     b2: float = 0.95
     weight_decay: float = 0.0
-    precondition_frequency: int = 10
+    precondition_frequency: int = 10  # SOAP 專用：preconditioner 更新頻率
     decay_steps: int = 20000
+    muon_momentum: float = 0.95       # Muon 專用：Nesterov momentum 係數
+    muon_ns_steps: int = 5            # Muon 專用：Newton-Schulz 迭代步數
 
 
 @dataclass
