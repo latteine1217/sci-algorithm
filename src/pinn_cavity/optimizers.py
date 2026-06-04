@@ -72,8 +72,8 @@ def _build_muon(opt_cfg) -> optax.GradientTransformation:
 
     演算法：
       1. Nesterov momentum: m_t = β·m_{t-1} + g_t; ĝ_t = g_t + β·m_t
-      2. 2D params: update = -lr · NS(ĝ_t) · sqrt(max_dim)
-         （NS 正交化使奇異值 ≈ 1，sqrt 補償 Frobenius scale）
+      2. 2D params: update = -lr · NS(ĝ_t)
+         （NS 正交化使奇異值 ≈ 1；不加 sqrt(max_dim)，小網路已 overscale）
       3. 1D params（bias 等）: Adam fallback（相同 lr）
 
     主要優勢相對 SOAP：
@@ -125,9 +125,13 @@ def _build_muon(opt_cfg) -> optax.GradientTransformation:
         def per_leaf(ge, am, av):
             # ndim 是靜態值，Python if 在 JIT 編譯期決定分支，不產生 lax.cond。
             if ge.ndim >= 2:
-                # Muon path：NS 正交化 + sqrt(max_dim) scale
+                # Muon path：NS 正交化，不加 sqrt(max_dim) scale。
+                # 去掉原因：NS 已把所有奇異值壓成 ~1（失去 adaptive scaling），
+                # 再乘 sqrt(max_dim) 給 128×5 MLP 帶來 10–20× overscaled step
+                # → it=1000 起即振盪爆掉（job 3915 診斷）。
+                # step size 完全由 cosine-decayed lr（1e-3→1e-5）控制。
                 u = _ns_ortho(ge, ns)
-                return -lr * u * jnp.sqrt(float(max(ge.shape)))
+                return -lr * u
             else:
                 # Adam fallback（bias / 1D params）
                 m_hat = am / bc1
