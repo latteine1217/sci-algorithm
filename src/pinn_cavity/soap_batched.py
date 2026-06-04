@@ -159,24 +159,38 @@ def scale_by_soap_batched(
         return new_updates, state._replace(GG=new_GG, Q=new_Q)
 
     def _batched_project(updates_leaves, Q_leaves):
-        """對 updates / Q leaves 執行批次化 project，回傳 projected leaves list。"""
-        projected = list(updates_leaves)   # 複製，後面 in-place 替換
+        """對 updates / Q leaves 執行批次化 project，回傳 projected leaves list。
+
+        同形狀 N>1 的 2D 層：vmap 批次化。
+        singleton 2D 層（input/output）和 1D 層：sequential fallback，保證每層都被處理。
+        """
+        projected = list(updates_leaves)
+        batched_indices = set()
         for indices in _groups.values():
-            n = len(indices)
+            batched_indices.update(indices)
             grad_batch = jnp.stack([updates_leaves[i] for i in indices])
             Q_batch = _stack_preconditioners([Q_leaves[i] for i in indices])
-            # vmap over batch dim：每個 (m,n) leaf 獨立 project
             proj_batch = jax.vmap(lambda g, q: project(g, q, precision))(
                 grad_batch, Q_batch
             )
             for j, orig_i in enumerate(indices):
                 projected[orig_i] = proj_batch[j]
+        # singleton 2D 層：sequential fallback（保證 input/output 也套用 preconditioner）
+        for i in range(len(updates_leaves)):
+            if i not in batched_indices and updates_leaves[i].ndim == 2:
+                projected[i] = project(updates_leaves[i], Q_leaves[i], precision)
         return projected
 
     def _batched_update_GG(updates_leaves, GG_leaves):
-        """對 updates / GG leaves 執行批次化 update_preconditioner，回傳新 GG leaves list。"""
+        """對 updates / GG leaves 執行批次化 update_preconditioner，回傳新 GG leaves list。
+
+        同形狀 N>1 的 2D 層：vmap 批次化。
+        singleton 2D 層和 1D 層：sequential fallback。
+        """
         new_GG_leaves = list(GG_leaves)
+        batched_indices = set()
         for indices in _groups.values():
+            batched_indices.update(indices)
             n = len(indices)
             grad_batch = jnp.stack([updates_leaves[i] for i in indices])
             GG_batch = _stack_preconditioners([GG_leaves[i] for i in indices])
@@ -186,13 +200,24 @@ def scale_by_soap_batched(
             unstacked = _unstack_preconditioners(new_GG_batch, n)
             for j, orig_i in enumerate(indices):
                 new_GG_leaves[orig_i] = unstacked[j]
+        # singleton 2D 層：sequential fallback
+        for i in range(len(updates_leaves)):
+            if i not in batched_indices:
+                new_GG_leaves[i] = update_preconditioner(
+                    updates_leaves[i], GG_leaves[i], shampoo_beta, precision
+                )
         return new_GG_leaves
 
     def _batched_project_back(norm_updates_leaves, Q_leaves):
-        """對 norm_updates / Q leaves 執行批次化 project_back。"""
+        """對 norm_updates / Q leaves 執行批次化 project_back。
+
+        同形狀 N>1 的 2D 層：vmap 批次化。
+        singleton 2D 層和 1D 層：sequential fallback。
+        """
         projback = list(norm_updates_leaves)
+        batched_indices = set()
         for indices in _groups.values():
-            n = len(indices)
+            batched_indices.update(indices)
             u_batch = jnp.stack([norm_updates_leaves[i] for i in indices])
             Q_batch = _stack_preconditioners([Q_leaves[i] for i in indices])
             pb_batch = jax.vmap(lambda u, q: project_back(u, q, precision))(
@@ -200,6 +225,10 @@ def scale_by_soap_batched(
             )
             for j, orig_i in enumerate(indices):
                 projback[orig_i] = pb_batch[j]
+        # singleton 2D 層：sequential fallback
+        for i in range(len(norm_updates_leaves)):
+            if i not in batched_indices and norm_updates_leaves[i].ndim == 2:
+                projback[i] = project_back(norm_updates_leaves[i], Q_leaves[i], precision)
         return projback
 
     def update_step(updates, state):
