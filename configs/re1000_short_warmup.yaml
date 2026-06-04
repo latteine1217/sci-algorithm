@@ -1,0 +1,49 @@
+# lab-server GPU (r740) 正式訓練配置
+# 勝出配置（ablation 2026-05-31）：SDF + RWF + fixed 權重 + 128×5 + curriculum。
+# 註：gradnorm 經 ablation 證實會毀掉收斂（L2 0.14→0.47），故用 fixed。
+re: 1000.0
+lid_r: 10.0
+seed: 0
+x64: false           # RTX 3090 FP64 吞吐僅 FP32 的 1/64；二階導在 x64 下不可用，故 fp32
+weighting: fixed     # ablation：fixed 勝 gradnorm
+weight_ema: 0.9
+autodiff: taylor     # bench: 16ms vs hessian 50ms，peak 1285MB vs 3686MB（3.1×快、2.9×省記憶體）
+
+network:
+  width: 128
+  depth: 5
+  n_fourier: 128
+  fourier_sigma: 6.0     # Re=1000 薄邊界層需較高頻
+  rwf: true              # RWF：ablation 證實有小幫助（0.141→0.119）
+  rwf_mu: 1.0
+  rwf_sigma: 0.1
+
+optimizer:
+  name: soap
+  learning_rate: 1.0e-3
+  b1: 0.95
+  b2: 0.95
+  weight_decay: 0.0
+  precondition_frequency: 10
+  decay_steps: 40000     # 對齊主階段步數
+
+sampler:
+  name: boundary_refined
+  boundary_fraction: 0.4
+  boundary_width: 0.04
+  corner_fraction: 0.15
+
+train:
+  steps: 40000           # curriculum 未指定步數時的預設
+  n_collocation: 16384
+  resample_every: 200
+  weight_update_every: 1000
+  log_every: 500
+  checkpoint_every: 5000
+
+# curriculum 必要！乾淨測試（job 3892）證實：直攻 Re=1000 → field-L2 1.0（spurious 解），
+# 有 curriculum → 0.045。暖機 Re=100→400 把網路導進正確 basin，不可省。
+curriculum:
+  - {re: 100, steps: 5000}
+  - {re: 400, steps: 5000}
+  - {re: 1000, steps: 40000}
