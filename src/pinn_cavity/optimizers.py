@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from soap_jax import soap
+from .soap_batched import soap_batched
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +150,29 @@ def _build_muon(opt_cfg) -> optax.GradientTransformation:
 # Registry
 # ---------------------------------------------------------------------------
 
+def _build_soap_batched(opt_cfg):
+    """SOAP 批次化版本：同形狀 2D 層的 per-step matmul 用 vmap 批次化。
+    QR refresh 保持 sequential（bench_batching 證實批次 QR 反而 12× 更慢）。
+    """
+    schedule = optax.cosine_decay_schedule(
+        init_value=opt_cfg.learning_rate,
+        decay_steps=max(1, opt_cfg.decay_steps),
+        alpha=0.01,
+    )
+    qr_dtype = jnp.float64 if jax.config.read("jax_enable_x64") else jnp.float32
+    return soap_batched(
+        learning_rate=schedule,
+        b1=opt_cfg.b1,
+        b2=opt_cfg.b2,
+        weight_decay=opt_cfg.weight_decay,
+        precondition_frequency=opt_cfg.precondition_frequency,
+        qr_dtype=qr_dtype,
+    )
+
+
 OPTIMIZERS = {
     "soap": _build_soap,
+    "soap_batched": _build_soap_batched,
     "muon": _build_muon,
 }
 
